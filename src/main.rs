@@ -1,7 +1,7 @@
 use eframe::{egui, epi};
 use std::process::Command;
 
-
+// checking if the branch is well made
 struct AndroidAppInstallerApplication {
     apk_path: String,
     devices: Vec<String>, // To store the device IDs
