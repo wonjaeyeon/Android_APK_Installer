@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::{ run_native, NativeOptions, App};
+use eframe::{run_native, NativeOptions, App};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -15,14 +15,15 @@ fn main() {
         "APK Installer",
         options,
         Box::new(|cc|
-                     {
-                         // This gives us image support:
-                         egui_extras::install_image_loaders(&cc.egui_ctx);
-                         Box::<AndroidAppInstallerApplication>::default()
-                     }
+            {
+                // This gives us image support:
+                egui_extras::install_image_loaders(&cc.egui_ctx);
+                Box::<AndroidAppInstallerApplication>::default()
+            }
         ),
     ).expect("TODO: panic message");
 }
+
 #[derive(Default)]
 struct AndroidAppInstallerApplication {
     //egui_ctx: egui::Context,
@@ -75,9 +76,7 @@ impl AndroidAppInstallerApplication {
     }
 
     fn update_ui(&mut self, ctx: &egui::Context) {
-
         egui::CentralPanel::default().show(ctx, |ui| {
-
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
                 let img = egui::include_image!("../res/icon/setting-icon.png");
                 if ui
@@ -102,8 +101,6 @@ impl AndroidAppInstallerApplication {
                     );
                     ui.heading("Android APK Installer");
                 });
-
-
             });
 
             ui.add_space(10.0);
@@ -164,7 +161,6 @@ impl AndroidAppInstallerApplication {
             for p in progress.iter() {
                 ui.label(format!("{}: {}{}", p.device_id, p.status, p.loading_indicator));
             }
-
         });
     }
 
@@ -249,12 +245,11 @@ impl AndroidAppInstallerApplication {
                 println!("APK installed on device: {}", device_id);
             }
         });
-}}
+    }
+}
 
 impl App for AndroidAppInstallerApplication {
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
         self.update_ui(ctx);
     }
 }

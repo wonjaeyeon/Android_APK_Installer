@@ -1,6 +1,6 @@
 [package]
 name = "android_apk_installer"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["wonjaeyeon <https://github.com/wonjaeyeon>"]
 edition = "2021"
 
