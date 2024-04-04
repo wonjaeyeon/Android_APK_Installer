@@ -5,6 +5,7 @@ use eframe::{ run_native, NativeOptions, App};
 //use eframe::egui; //  already imported by eframe
 use std::process::Command;
 
+// check if the feature_ui_message_add branch is available
 fn main() {
     let options = NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
