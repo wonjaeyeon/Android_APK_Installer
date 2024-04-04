@@ -2,10 +2,11 @@
 
 
 use eframe::{ run_native, NativeOptions, App};
-//use eframe::egui; //  already imported by eframe
 use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
-// check if the feature_ui_message_add branch is available
 fn main() {
     let options = NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
@@ -31,6 +32,10 @@ struct AndroidAppInstallerApplication {
     apk_path: String,
     devices: Vec<String>,
     message: String,
+    device_message: String,
+    apk_message: String,
+    install_message: Arc<Mutex<String>>,
+    //install_message: String,
     //apk_files: Vec<String>,
 }
 
@@ -50,7 +55,7 @@ impl AndroidAppInstallerApplication {
             .add_filter("APK files", &["apk"])
             .pick_file() {
             self.apk_path = file_path.as_path().to_string_lossy().into_owned();
-            self.message = format!("Selected APK: {}", self.apk_path);
+            self.apk_message = format!("Selected APK: {}", self.apk_path);
         }
     }
 
@@ -92,6 +97,8 @@ impl AndroidAppInstallerApplication {
                 }
             });
 
+            ui.label(&self.device_message);
+
             ui.separator();
 
             ui.add(
@@ -110,15 +117,18 @@ impl AndroidAppInstallerApplication {
                 ui.label(&self.apk_path);
             });
 
+
+            ui.label(&self.apk_message);
             ui.separator();
-
-
-            ui.label(&self.message);
 
             if ui.button("Install APK").clicked() {
                 self.install_apk();
             }
 
+            // 현재 설치 메시지를 표시
+            let message = self.install_message.lock().unwrap();
+            ui.label(message.as_str());
+            //ui.label(&self.install_message);
 
             //ui.image(egui::include_image!("../res/icon/android-icon.png"));
 
@@ -143,30 +153,79 @@ impl AndroidAppInstallerApplication {
         }
 
         if self.devices.is_empty() {
-            self.message = String::from("No devices detected.");
+            self.device_message = String::from("No devices detected.");
         } else {
-            self.message = format!("{} device(s) detected.", self.devices.len());
+            self.device_message = format!("{} device(s) detected.", self.devices.len());
         }
     }
 
-    fn install_apk(&self) {
+    fn install_apk(&mut self) {
         if self.apk_path.is_empty() {
+            self.apk_message = String::from("APK path is empty");
             eprintln!("APK path is empty");
             return;
         }
 
-        for device_id in &self.devices {
-            println!("Installing APK on device: {}", device_id);
+    //     let install_message = Arc::clone(&self.install_message);
+    //
+    //     thread::spawn(move || {
+    //     for device_id in &self.devices {
+    //         //self.install_message += &format!("{} : Installing\n", device_id);
+    //         {
+    //             let mut msg = install_message.lock().unwrap();
+    //             *msg = format!("{} : Installing\n", device_id);
+    //         } // MutexGuard가 범위를 벗어나면서 Mutex가 자동으로 해제됩니다.
+    //         println!("Installing APK on device: {}", device_id);
+    //
+    //         let _install_output = Command::new("adb")
+    //             .args(["-s", device_id, "install", &self.apk_path])
+    //             .output()
+    //             .expect("Failed to execute install command");
+    //
+    //         // Update the message to indicate success
+    //         // self.install_message = self.install_message.trim_end_matches('\n').to_string(); // Remove the trailing newline
+    //         // self.install_message = self.install_message.trim_end_matches("Installing").to_string(); // Remove the "Installing" part
+    //         // self.install_message += "Installed Success\n"; // Add "Installed Success" message
+    //         {
+    //             let mut msg = install_message.lock().unwrap();
+    //             *msg = format!("{} : Installed Success\n", device_id);
+    //         }
+    //         println!("APK installed on device: {}", device_id);
+    //     }
+    //
+    //     // if !self.install_message.is_empty() {
+    //     //     // Remove the last newline character for the final message
+    //     //     self.install_message.pop();
+    //     // }
+    //     });
+    // }
+        // `self.devices`와 `self.apk_path`를 스레드 내부에서 사용하기 위해 복사합니다.
+        let devices = self.devices.clone();
+        let apk_path = self.apk_path.clone();
+        let install_message = Arc::clone(&self.install_message);
 
-            let _install_output = Command::new("adb")
-                .args(["-s", device_id, "install", &self.apk_path])
-                .output()
-                .expect("Failed to execute install command");
+        thread::spawn(move || {
+            for device_id in devices {
+                {
+                    let mut msg = install_message.lock().unwrap();
+                    *msg = format!("{} : Installing\n", device_id);
+                }
+                println!("Installing APK on device: {}", device_id);
 
-            println!("APK installed on device: {}", device_id);
-        }
-    }
-}
+                // `apk_path`는 이제 스레드 내에서 직접적으로 접근 가능한 클론된 데이터입니다.
+                let _install_output = Command::new("adb")
+                    .args(["-s", &device_id, "install", &apk_path])
+                    .output()
+                    .expect("Failed to execute install command");
+
+                {
+                    let mut msg = install_message.lock().unwrap();
+                    *msg = format!("{} : Installed Success\n", device_id);
+                }
+                println!("APK installed on device: {}", device_id);
+            }
+        });
+}}
 
 impl App for AndroidAppInstallerApplication {
 
