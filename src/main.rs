@@ -21,8 +21,6 @@ fn main() {
                          egui_extras::install_image_loaders(&cc.egui_ctx);
                          Box::<AndroidAppInstallerApplication>::default()
                      }
-
-            //Box::new(AndroidAppInstallerApplication::new(cc.egui_ctx.clone()))
         ),
     ).expect("TODO: panic message");
 }
@@ -31,13 +29,11 @@ struct AndroidAppInstallerApplication {
     //egui_ctx: egui::Context,
     apk_path: String,
     devices: Vec<String>,
-    message: String,
     device_message: String,
     apk_message: String,
-    install_message: Arc<Mutex<String>>,
+    //install_message: Arc<Mutex<String>>,
     install_progress: Arc<Mutex<Vec<InstallProgress>>>,
-    //install_message: String,
-    //apk_files: Vec<String>,
+    show_settings: bool, // Flag to control the visibility of the settings window
 }
 
 struct InstallProgress {
@@ -66,9 +62,35 @@ impl AndroidAppInstallerApplication {
         }
     }
 
+    // Method to display the settings sub-screen
+    fn show_settings_window(&mut self, ctx: &egui::Context) {
+        egui::Window::new("Settings")
+            .open(&mut self.show_settings) // This will allow the window to be closed
+            .show(ctx, |ui| {
+                let version = env!("CARGO_PKG_VERSION");
+                let authors = env!("CARGO_PKG_AUTHORS"); // Note: `CARGO_PKG_AUTHORS` is a colon-separated list
+
+                ui.label(format!("Version: {}", version));
+                ui.label(format!("Author(s): {}", authors.replace(':', ", ")));
+            });
+    }
+
     fn update_ui(&mut self, ctx: &egui::Context) {
 
         egui::CentralPanel::default().show(ctx, |ui| {
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                let img = egui::include_image!("../res/icon/setting-icon.png");
+                if ui
+                    .add_sized(
+                        [20.0, 20.0],
+                        egui::ImageButton::new(img.clone()).frame(false),
+                    )
+                    .clicked()
+                {
+                    self.show_settings = true;
+                }
+            });
 
 
             ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
@@ -81,13 +103,20 @@ impl AndroidAppInstallerApplication {
                     );
                     ui.heading("Android APK Installer");
                 });
-            });
 
+
+            });
 
             ui.add_space(10.0);
 
+
+            // Conditionally show the settings window
+            if self.show_settings {
+                self.show_settings_window(ctx);
+            }
+
             ui.add(
-                egui::Image::new(egui::include_image!("../res/icon/tablet-icon-7.png"))
+                egui::Image::new(egui::include_image!("../res/icon/tablet-icon.png"))
                     .max_width(40.0)
                     .max_height(40.0)
                     .rounding(5.0),
@@ -109,7 +138,7 @@ impl AndroidAppInstallerApplication {
             ui.separator();
 
             ui.add(
-                egui::Image::new(egui::include_image!("../res/icon/apk-icon-3.png"))
+                egui::Image::new(egui::include_image!("../res/icon/apk-icon.png"))
                     .max_width(40.0)
                     .max_height(40.0)
                     .rounding(5.0),
@@ -124,7 +153,6 @@ impl AndroidAppInstallerApplication {
                 ui.label(&self.apk_path);
             });
 
-
             ui.label(&self.apk_message);
             ui.separator();
 
@@ -133,17 +161,10 @@ impl AndroidAppInstallerApplication {
             }
 
             // 현재 설치 메시지를 표시
-            // let message = self.install_message.lock().unwrap();
-            // ui.label(message.as_str());
             let progress = self.install_progress.lock().unwrap();
             for p in progress.iter() {
                 ui.label(format!("{}: {}{}", p.device_id, p.status, p.loading_indicator));
             }
-
-
-            //ui.label(&self.install_message);
-
-            //ui.image(egui::include_image!("../res/icon/android-icon.png"));
 
         });
     }
@@ -179,43 +200,10 @@ impl AndroidAppInstallerApplication {
             return;
         }
 
-    //     let install_message = Arc::clone(&self.install_message);
-    //
-    //     thread::spawn(move || {
-    //     for device_id in &self.devices {
-    //         //self.install_message += &format!("{} : Installing\n", device_id);
-    //         {
-    //             let mut msg = install_message.lock().unwrap();
-    //             *msg = format!("{} : Installing\n", device_id);
-    //         } // MutexGuard가 범위를 벗어나면서 Mutex가 자동으로 해제됩니다.
-    //         println!("Installing APK on device: {}", device_id);
-    //
-    //         let _install_output = Command::new("adb")
-    //             .args(["-s", device_id, "install", &self.apk_path])
-    //             .output()
-    //             .expect("Failed to execute install command");
-    //
-    //         // Update the message to indicate success
-    //         // self.install_message = self.install_message.trim_end_matches('\n').to_string(); // Remove the trailing newline
-    //         // self.install_message = self.install_message.trim_end_matches("Installing").to_string(); // Remove the "Installing" part
-    //         // self.install_message += "Installed Success\n"; // Add "Installed Success" message
-    //         {
-    //             let mut msg = install_message.lock().unwrap();
-    //             *msg = format!("{} : Installed Success\n", device_id);
-    //         }
-    //         println!("APK installed on device: {}", device_id);
-    //     }
-    //
-    //     // if !self.install_message.is_empty() {
-    //     //     // Remove the last newline character for the final message
-    //     //     self.install_message.pop();
-    //     // }
-    //     });
-    // }
         // `self.devices`와 `self.apk_path`를 스레드 내부에서 사용하기 위해 복사합니다.
         let devices = self.devices.clone();
         let apk_path = self.apk_path.clone();
-        let install_message = Arc::clone(&self.install_message);
+        // let install_message = Arc::clone(&self.install_message);
         let progress = Arc::clone(&self.install_progress);
 
         // Clear previous progress
@@ -225,8 +213,6 @@ impl AndroidAppInstallerApplication {
             for device_id in devices {
                 let mut loading = ".".to_string();
                 {
-                    // let mut msg = install_message.lock().unwrap();
-                    // *msg = format!("{} : Installing\n", device_id);
                     for _ in 0..3 { // Simulate updating loading indicator
                         {
                             let mut p = progress.lock().unwrap();
@@ -255,8 +241,6 @@ impl AndroidAppInstallerApplication {
                     .expect("Failed to execute install command");
 
                 {
-                    // let mut msg = install_message.lock().unwrap();
-                    // *msg = format!("{} : Installed Success\n", device_id);
                     let mut p = progress.lock().unwrap();
                     if let Some(index) = p.iter().position(|x| x.device_id == device_id) {
                         p[index].status = "Installed Success".to_string();
@@ -269,7 +253,6 @@ impl AndroidAppInstallerApplication {
 }}
 
 impl App for AndroidAppInstallerApplication {
-
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
