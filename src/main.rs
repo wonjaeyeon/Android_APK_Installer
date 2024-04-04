@@ -35,8 +35,15 @@ struct AndroidAppInstallerApplication {
     device_message: String,
     apk_message: String,
     install_message: Arc<Mutex<String>>,
+    install_progress: Arc<Mutex<Vec<InstallProgress>>>,
     //install_message: String,
     //apk_files: Vec<String>,
+}
+
+struct InstallProgress {
+    device_id: String,
+    status: String,
+    loading_indicator: String,
 }
 
 impl AndroidAppInstallerApplication {
@@ -126,8 +133,14 @@ impl AndroidAppInstallerApplication {
             }
 
             // 현재 설치 메시지를 표시
-            let message = self.install_message.lock().unwrap();
-            ui.label(message.as_str());
+            // let message = self.install_message.lock().unwrap();
+            // ui.label(message.as_str());
+            let progress = self.install_progress.lock().unwrap();
+            for p in progress.iter() {
+                ui.label(format!("{}: {}{}", p.device_id, p.status, p.loading_indicator));
+            }
+
+
             //ui.label(&self.install_message);
 
             //ui.image(egui::include_image!("../res/icon/android-icon.png"));
@@ -203,12 +216,35 @@ impl AndroidAppInstallerApplication {
         let devices = self.devices.clone();
         let apk_path = self.apk_path.clone();
         let install_message = Arc::clone(&self.install_message);
+        let progress = Arc::clone(&self.install_progress);
+
+        // Clear previous progress
+        *progress.lock().unwrap() = vec![];
 
         thread::spawn(move || {
             for device_id in devices {
+                let mut loading = ".".to_string();
                 {
-                    let mut msg = install_message.lock().unwrap();
-                    *msg = format!("{} : Installing\n", device_id);
+                    // let mut msg = install_message.lock().unwrap();
+                    // *msg = format!("{} : Installing\n", device_id);
+                    for _ in 0..3 { // Simulate updating loading indicator
+                        {
+                            let mut p = progress.lock().unwrap();
+                            // Remove old status if exists
+                            if let Some(index) = p.iter().position(|x| x.device_id == device_id) {
+                                p.remove(index);
+                            }
+                            // Add new progress status
+                            p.push(InstallProgress {
+                                device_id: device_id.clone(),
+                                status: "Installing".to_string(),
+                                loading_indicator: loading.clone(),
+                            });
+                        }
+                        println!("Installing APK on device: {}", device_id);
+                        thread::sleep(Duration::from_secs(1)); // Simulate installation time
+                        loading.push('.'); // Update loading indicator
+                    }
                 }
                 println!("Installing APK on device: {}", device_id);
 
@@ -219,8 +255,13 @@ impl AndroidAppInstallerApplication {
                     .expect("Failed to execute install command");
 
                 {
-                    let mut msg = install_message.lock().unwrap();
-                    *msg = format!("{} : Installed Success\n", device_id);
+                    // let mut msg = install_message.lock().unwrap();
+                    // *msg = format!("{} : Installed Success\n", device_id);
+                    let mut p = progress.lock().unwrap();
+                    if let Some(index) = p.iter().position(|x| x.device_id == device_id) {
+                        p[index].status = "Installed Success".to_string();
+                        p[index].loading_indicator = "".to_string();
+                    }
                 }
                 println!("APK installed on device: {}", device_id);
             }
